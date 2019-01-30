@@ -1,15 +1,14 @@
 let fs = require('fs'),
     PDFParser = require("pdf2json");
 
-let pdfParser = new PDFParser();
-
+const pdfRegexp = new RegExp('\.pdf');
 const keyDate = 'date';
 const keyType = 'type';
 const keyNarrative = 'narrative';
 const keyDebit = 'debit';
 const keyCredit = 'credit';
 const keyBalance = 'balance';
-const debitTypes = ['DD', 'SO'];
+const debitTypes = ['DD', 'SO', 'CHQ'];
 const typeDate = 'date';
 const typeType = 'type';
 const typeFloat = 'float';
@@ -37,7 +36,9 @@ const isType = function(string) {
     const validTypes = [
         'DD',
         'CR',
-        'SO'
+        'SO',
+        'CHQ',
+        'TRF'
     ];
 
     if (validTypes.indexOf(string) === -1) {
@@ -122,12 +123,12 @@ const convertFloat = function(float) {
 const cleanString = function(string, join) {
     string = string.split('%20').join(join);
     string = string.split('%2C').join(join);
+    string = string.split('%26').join(join);
 
     return string;
 }
 
-pdfParser.on("pdfParser_dataError", errData => console.error(errData.parserError) );
-pdfParser.on("pdfParser_dataReady", pdfData => {
+const processPdfData = function(pdfData, outputFilename) {
     let yContent = {};
 
     // Each of the pages
@@ -159,6 +160,7 @@ pdfParser.on("pdfParser_dataReady", pdfData => {
         for (let key3 in rowData) {
             let content = rowData[key3];
             let contentType = getContentType(rowData[key3]);
+            let ignoreFloat = false;
 
             // Found a date
             if (contentType === typeDate) {
@@ -187,10 +189,15 @@ pdfParser.on("pdfParser_dataReady", pdfData => {
                     } else {
                         statementRecord['narrative'] = cleanString(content, ' ');
                     }
+
+                // Cheques have a numeric value as description
+                } else if (statementRecord.hasOwnProperty('type') && statementRecord['type'] === 'CHQ' && !statementRecord.hasOwnProperty('narrative') && contentType === typeFloat) {
+                    statementRecord['narrative'] = cleanString(content, '');
+                    ignoreFloat = true;
                 }
 
                 // Paid our or paid in
-                if (contentType === typeFloat) {
+                if (contentType === typeFloat && !ignoreFloat) {
                     // Credit or debit
                     if (false === statementRecord.hasOwnProperty('debit') && false === statementRecord.hasOwnProperty('credit')) {
                         if (debitTypes.indexOf(statementRecord['type']) !== -1) {
@@ -228,19 +235,37 @@ pdfParser.on("pdfParser_dataReady", pdfData => {
         previousRow = yContent[yAxis];
     }
 
-    // console.log(csvData);
-    // console.log(statementRecords);
+    let outputPath = "csv/" + outputFilename;
+    let writeStream = fs.createWriteStream(outputPath);
 
-    // Output
-    console.log(keyDate, ',', keyType, ',',keyNarrative, ',', keyDebit, ',', keyCredit, ',', keyBalance);
+    writeStream.write(keyDate + ',' + keyType + ',' + keyNarrative + ',' + keyDebit + ',' + keyCredit + ',' + keyBalance + "\n");
 
     for (let statementIndex in statementRecords) {
         let statementRow = statementRecords[statementIndex];
 
-        console.log(statementRow[keyDate], ',', statementRow[keyType], ',', statementRow[keyNarrative], ',', statementRow[keyDebit], ',', statementRow[keyCredit], ',', statementRow[keyBalance]);
+        writeStream.write(statementRow[keyDate] + ',' + statementRow[keyType] + ',' + statementRow[keyNarrative] + ',' + statementRow[keyDebit] + ',' + statementRow[keyCredit] + ',' + statementRow[keyBalance] + "\n");
     }
 
+    writeStream.on('finish', () => {
+        console.log('Created file - ' + outputPath);
+    });
+    writeStream.end();
+}
 
+fs.readdir('pdf', function(err, items) {
+    for (let key in items) {
+        let fileName = items[key];
+
+        if (true === pdfRegexp.test(fileName)) {
+            let pdfParser = new PDFParser();
+            let outputFilename = fileName.replace('.pdf', '.csv');
+
+            pdfParser.on("pdfParser_dataError", errData => console.error(errData.parserError) );
+            pdfParser.on("pdfParser_dataReady", pdfData => {
+                processPdfData(pdfData, outputFilename);
+            });
+
+            pdfParser.loadPDF('pdf/' + fileName);
+        }
+    }
 });
-
-pdfParser.loadPDF("PATH_TO_MY_PDF.pdf");

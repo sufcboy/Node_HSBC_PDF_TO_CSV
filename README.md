@@ -7,16 +7,12 @@ This project is still in it's infancy so please be patient.
 npm install
 ```
 
-Manually update the path to the PDF in index.js
-
-```
-pdfParser.loadPDF("PATH_TO_MY_PDF.pdf");
-```
+Place all of your PDFs into the 'pdf' directory
 
 run
 
 ```
-node index.js > output.csv
+node index.js
 ```
 
-See output.csv
+Check the csv directory for the resultant files
