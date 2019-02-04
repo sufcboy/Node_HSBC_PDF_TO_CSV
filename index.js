@@ -8,7 +8,7 @@ const keyNarrative = 'narrative';
 const keyDebit = 'debit';
 const keyCredit = 'credit';
 const keyBalance = 'balance';
-const debitTypes = ['DD', 'SO', 'CHQ'];
+const debitTypes = ['DD', 'SO'];
 const typeDate = 'date';
 const typeType = 'type';
 const typeFloat = 'float';
@@ -19,6 +19,8 @@ const getContentType = function(content) {
         return typeDate
     } else if (isType(content) === true) {
         return typeType;
+    // } else if (isAccountNumber(content) === true) {
+    //     return typeString;
     } else if (isFloat(content) === true) {
         return typeFloat;
     } else {
@@ -32,13 +34,19 @@ const isDate = function(string) {
     return regex.test(string);
 }
 
+// const isAccountNumber = function(string) {
+//     const regex = new RegExp('[0-9]{6}%20[0-9]{8}');
+
+//     return regex.test(string);
+// }
+
 const isType = function(string) {
     const validTypes = [
         'DD',
         'CR',
         'SO',
         'CHQ',
-        'TRF'
+        'TFR'
     ];
 
     if (validTypes.indexOf(string) === -1) {
@@ -54,7 +62,9 @@ const isFloat = function(string) {
     }
 
     let formattedStr = string.replace('%2C', '');
-    return !isNaN(formattedStr);
+
+    const floatRegexp = /^[0-9]{1,}\.[0-9]{2}$/g;
+    return floatRegexp.test(formattedStr);
 }
 
 const isDoubleNarrative = function(statementRecords, previousRow, rowsSinceCompleteStatement) {
@@ -126,6 +136,24 @@ const cleanString = function(string, join) {
     string = string.split('%26').join(join);
 
     return string;
+}
+
+const inflateDebitOrCredit = function(content, currentRecord, previousRecord) {
+    if (currentRecord.hasOwnProperty('balance') && previousRecord.hasOwnProperty('balance')) {
+        if (previousRecord['balance'] < currentRecord['balance']) {
+            currentRecord[keyCredit] = convertFloat(content);
+            currentRecord[keyDebit] = 0;
+        } else {
+            currentRecord[keyCredit] = 0;
+            currentRecord[keyDebit] = convertFloat(content);
+        }
+    } else {
+        console.log('Unable to determine whether one row is debit or credit');
+        currentRecord[keyCredit] = 'N/A';
+        currentRecord[keyDebit] = 'NA';
+    }
+
+    return currentRecord;
 }
 
 const processPdfData = function(pdfData, outputFilename) {
@@ -203,12 +231,28 @@ const processPdfData = function(pdfData, outputFilename) {
                         if (debitTypes.indexOf(statementRecord['type']) !== -1) {
                             statementRecord['debit'] = convertFloat(content);
                             statementRecord['credit'] = 0.00;
-                        } else {
+                        } else if (statementRecord['type'] === 'CR'){
                             statementRecord['debit'] = 0.00;
                             statementRecord['credit'] = convertFloat(content);
+                        } else {
+                            let nextKey = parseInt(key3, 10) + 1;
+
+                            // Skip to balance so we can work out whether it a debit or credit
+                            if (rowData.hasOwnProperty(nextKey) && true === isFloat(rowData[nextKey])) {
+                                statementRecord['balance'] = convertFloat(rowData[nextKey]);
+                                statementRecord = inflateDebitOrCredit(
+                                    content,
+                                    statementRecord,
+                                    statementRecords[statementRecords.length - 1]
+                                );
+                            }
+                            // See if we have another key
+                            // See if it's a float
+                            // Assign to balance
+                            // rowData[key3]
                         }
                     // Running total
-                    } else {
+                    } else if (!statementRecord.hasOwnProperty('balance')) {
                         statementRecord['balance'] = convertFloat(content)
                     }
                 }
