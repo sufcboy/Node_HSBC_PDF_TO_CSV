@@ -4,11 +4,14 @@
   "description": "Node import for HSBC statements",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "Nick Bennett",
   "license": "ISC",
   "dependencies": {
-    "pdf2json": "1.1.5"
+    "pdf2json": "2.0.0"
+  },
+  "devDependencies": {
+    "mocha": "9.1.3"
   }
 }

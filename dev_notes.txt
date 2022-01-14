@@ -1,0 +1,21 @@
+* TO DO *
+
+Maybe we need to rework this.
+
+Loop through the content and clean
+Disregard anything not in the statement section
+See what we have and go from there
+
+
+
+isDoubleNarrative - checks whether narrative stretches to other row
+inflateBalance - Sets balance against statement record
+inflateDebitOrCredit - Sets the debit/credit in statement record
+
+processPdfData - Takes the PDF data and output and spits out the CSV
+
+
+*Bugs*
+
+Credit card PDFs can't be converted
+
