@@ -1,18 +1,108 @@
 * TO DO *
 
-Maybe we need to rework this.
+NEW DIRECTION - USE PROMPT
 
-Loop through the content and clean
-Disregard anything not in the statement section
-See what we have and go from there
+Automation seems out of the question. Lets walk it through with someone.
+
+so ...
+
+q1. What date does the statement start from (01/Dec/2014)
+
+(Try to locate this date in the statement)
+
+HAPPY PATH
+
+q2. We've found some statement data. Lets walk through this line by line. Does this look like a statement narrative?
+
+'AMZNMktplace'
+
+Yes - Mark co-ordinates as narrative
+
+No - igore
+
+q3. Is this a debit?
+
+'13.94'
+
+Yes - Mark co-ordinated down for debit
+
+No - Is this a credit?
+
+Yes - Mark co-ordinate for credit
+
+No - Mark co-ordinate for balance
+
+Ok so every transaction should have a recognised transaction type
+
+including ')))'? God knows why
+
+
+Find last transaction record, and add 3 to ensure we don't loop through unnecessary content.
+
+
+Goal
+Jan statements
+ - transactions - 29
+
+Steps
+
+Phase 1 - Goal output the statement records to csv NO merging
+* Loop through and extract all of text nodes
+* Have a mapper for x co-ordinates and statement entry
+
+
+Phase 1 - Tidy up
+* Working tests
+* Co-pilot to tidy the code
+
+Phase 2 - Get the merging working
+* Loop through all of the content and keep anything relevant
 
 
 
-isDoubleNarrative - checks whether narrative stretches to other row
-inflateBalance - Sets balance against statement record
-inflateDebitOrCredit - Sets the debit/credit in statement record
+Current
+  Get all of the transactions out
 
-processPdfData - Takes the PDF data and output and spits out the CSV
+Bug
+
+{
+  date: '3.0810',
+  transaction: '6.8130',
+  narrative: '8.5190',
+  debit: '22.975',
+  credit: '23.256',
+  balance: '32.837'
+}
+
+I think, if there is a balance row the mapping changes urgh
+
+x = 23.256 = debit when balance is set at x = 32.837
+
+credit should be at 27.438 when balance
+
+Fix
+  1. use transaction type in mapper to determine
+  2. Have another mapper key debit with balance
+
+
+  '38.911': {
+    '3.081': '23%20Dec%2020',
+    '6.813': 'CR',
+    '8.519': 'PHH%20ACCOUNTANCY%20LI',
+    '27.438': '4%2C523.22',
+    '32.406': '4%2C855.48'
+  },
+  {
+    date: '29 Dec 20', - wrong
+    transaction: 'VIS', - wrong
+    narrative: 'PHH ACCOUNTANCY LI HSBC BNK VSA454638 454638******2104 Hannah Bennett Food -AMZNMKTPLACE AMAZO AMAZON.CO.UK', - wrong
+    amount: '4855.48', - wrong - where is amount coming from
+    credit: '7.99' - wrong
+  },
+
+Ideas
+
+
 
 
 *Bugs*
