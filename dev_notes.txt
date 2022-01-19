@@ -1,43 +1,14 @@
 * TO DO *
 
-NEW DIRECTION - USE PROMPT
-
-Automation seems out of the question. Lets walk it through with someone.
-
-so ...
-
-q1. What date does the statement start from (01/Dec/2014)
-
-(Try to locate this date in the statement)
-
-HAPPY PATH
-
-q2. We've found some statement data. Lets walk through this line by line. Does this look like a statement narrative?
-
-'AMZNMktplace'
-
-Yes - Mark co-ordinates as narrative
-
-No - igore
-
-q3. Is this a debit?
-
-'13.94'
-
-Yes - Mark co-ordinated down for debit
-
-No - Is this a credit?
-
-Yes - Mark co-ordinate for credit
-
-No - Mark co-ordinate for balance
-
-Ok so every transaction should have a recognised transaction type
-
-including ')))'? God knows why
+Things to Fix
+* CC doesn't have transactions
+* Replace this transaction: ')))',
+* Auto detect debit and credit from transaction
+* Ask for start balance and set balance
+* Set the date for each field
+* Add colour
 
 
-Find last transaction record, and add 3 to ensure we don't loop through unnecessary content.
 
 
 Goal

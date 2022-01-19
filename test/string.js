@@ -3,7 +3,7 @@ const { it } = require('mocha');
 var string = require('../string')
 
 describe('string', function () {
-  describe('#getContentType()', function () {
+  describe.only('#getContentType()', function () {
     it('should return date type when date string passed', function () {
       assert.equal(string.TYPE_DATE, string.getContentType('18%20Dec%2020'));
     });
@@ -18,6 +18,10 @@ describe('string', function () {
 
     it('should return float type when string contains encoded comma', function () {
       assert.equal(string.TYPE_FLOAT, string.getContentType('4%2C523.22'))
+    })
+
+    it('should return string type when string a id number', function () {
+      assert.equal(string.TYPE_STRING, string.getContentType('08001076285'))
     })
 
     it('should return string type for everything else', function () {
@@ -154,7 +158,7 @@ describe('string', function () {
     })
   })
 
-  describe.only('#findContentByLocation', function () {
+  describe('#findContentByLocation', function () {
     it('should find the content and return for a details', function () {
       assert.deepEqual(
         'aws.amazon.co'

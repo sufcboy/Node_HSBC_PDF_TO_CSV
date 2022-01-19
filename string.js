@@ -17,7 +17,8 @@ const TRANSACTION_TYPES = [
   'CHQ',
   'TFR',
   'VIS',
-  'BP'
+  'BP',
+  ')))'
 ];
 
 // TODO: tidy this
@@ -28,7 +29,7 @@ const requiredKeys = [
 ];
 
 const dateRegExp = new RegExp('[0-9]{2}%20(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)%20[0-9]{2}');
-const floatRegExp = new RegExp('^[0-9,]{1,}\.[0-9]{2}$');
+const floatRegExp = /^[0-9,]{1,}\.[0-9]{2}$/;
 
 const cleanString = function (string) {
   // spaces, commas and ampersands
@@ -285,6 +286,10 @@ const getContentTypeCoOrdinates = function () {
   }
 }
 
+const determineFloatType = function (statement, content) {
+
+}
+
 // Constants
 exports.TYPE_DATE = TYPE_DATE
 exports.TYPE_TRANSACTION = TYPE_TRANSACTION
@@ -301,3 +306,4 @@ exports.getContentType = getContentType
 exports.getContentTypeCoOrdinates = getContentTypeCoOrdinates
 exports.extractCleanContentForMapper = extractCleanContentForMapper
 exports.findContentByLocation = findContentByLocation;
+exports.cleanContent = cleanContent;
