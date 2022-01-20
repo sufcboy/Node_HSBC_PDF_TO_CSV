@@ -2,6 +2,7 @@
 
 Things to Fix
 * CC doesn't have transactions
+* Add trim and escape for commas
 * Replace this transaction: ')))',
 * Auto detect debit and credit from transaction
 * Ask for start balance and set balance

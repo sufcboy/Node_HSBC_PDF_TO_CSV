@@ -6,6 +6,16 @@ const prompt = require("prompt-sync")({ sigint: true });
 
 const pdfRegexp = new RegExp('.pdf');
 const enableDebug = true;
+const statementType = getStatementType();
+const firstEntryDate = getDateOfFirstEntry();
+
+function getStatementType() {
+  return prompt('What type of statement is this (credit (c) or other (o))?')
+}
+
+function getDateOfFirstEntry() {
+  return prompt('What is the first transaction date (dd mmm)?')
+}
 
 function customLog(message) {
   if (enableDebug) {
@@ -13,41 +23,35 @@ function customLog(message) {
   }
 }
 
+function isThisTheFirstTransactionDate(content) {
+  if (string.getContentType(content) !== string.TYPE_DATE) {
+    return false;
+  }
 
-const outputMappedContent = function (pagesExtract, mapper, outputFilename) {
-  let outputPath = "csv/" + outputFilename;
-  let writeStream = fs.createWriteStream(outputPath);
+  const clean = string.cleanString(content)
 
-  writeStream.write(Object.keys(mapper).join(',') + "\n");
+  // Credit card
+  // 21 Dec
+  if (statementType === 'c') {
+    if (clean.toLowerCase() === firstEntryDate.toLowerCase()) {
+      return true
+    }
+    // 21 Dec 20
+  } else {
+    const dateParts = clean.explode(' ');
 
-  // console.log('date,transaction,narrative,debit,credit,balance');
+    if (`${dateParts[0]} ${dateParts[1]}`.toLowerCase() === firstEntryDate.toLowerCase()) {
+      return true;
+    }
+  }
 
-  const pageContent = [];
-
-  Object.keys(pagesExtract).forEach(function (page) {
-    let pageExtract = pagesExtract[page];
-
-    pageExtract.forEach(function (row) {
-      var rowMapper = {}
-      for (let label in mapper) {
-        let details = mapper[label];
-        let content = string.findContentByLocation(row, details.location);
-        rowMapper[label] = content ? content : '';
-      }
-
-      let values = Object.values(rowMapper);
-
-      writeStream.write(values.join(',') + "\n");
-      pageContent.push(rowMapper);
-    })
-  })
-
-  // cont output =
+  return false;
 }
 
 const processPdfData = function (pdfData, outputFilename) {
   // Get the page content
   const pageTextNodes = pdf.extractPdfDataToContent(pdfData);
+
   // const pagesExtracts = {};
   let pageCount = 1;
   let statements = [];
@@ -88,37 +92,39 @@ const processPdfData = function (pdfData, outputFilename) {
       for (let xAxis in rowContent) {
         const content = rowContent[xAxis];
 
-        // Found the first statement entry
-        if (string.getContentType(content) === string.TYPE_TRANSACTION && !foundStatement
-        ) {
-          foundStatement = true;
-          statementContent['transaction'] = content;
-        } else if (foundStatement) {
-          const contentType = string.getContentType(content);
-          const cleanContent = string.cleanContent(content);
+        if (!foundStatement) {
+          foundStatement = isThisTheFirstTransactionDate(content);
 
-          switch (contentType) {
-            case string.TYPE_TRANSACTION:
-              statementContent['transaction'] = cleanContent;
-              break;
-            case string.TYPE_DATE:
-              statementContent['date'] = cleanContent;
-              break;
-            case string.TYPE_FLOAT:
-              statementContent = setFloatContent(statementContent, cleanContent);
-              break;
-
-            case string.TYPE_STRING:
-              statementContent['narrative'] = Object.prototype.hasOwnProperty.call(statementContent, 'narrative') ? `${statementContent['narrative']} ${cleanContent}` : cleanContent;
-              break
-            default:
-              break;
+          if (!foundStatement) {
+            continue;
           }
         }
-      }
 
-      pageCount++;
+        // Found the first statement entry
+        const contentType = string.getContentType(content);
+        const cleanContent = string.cleanContent(content);
+
+        switch (contentType) {
+          case string.TYPE_TRANSACTION:
+            statementContent['transaction'] = cleanContent;
+            break;
+          case string.TYPE_DATE:
+            statementContent['date'] = cleanContent;
+            break;
+          case string.TYPE_FLOAT:
+            statementContent = setFloatContent(statementContent, cleanContent);
+            break;
+
+          case string.TYPE_STRING:
+            statementContent['narrative'] = Object.prototype.hasOwnProperty.call(statementContent, 'narrative') ? `${statementContent['narrative']} ${cleanContent}` : cleanContent;
+            break
+          default:
+            break;
+        }
+      }
     }
+
+    pageCount++;
 
     if (statements.length > 0) {
       console.log('statements', statements);

@@ -22,12 +22,13 @@ const TRANSACTION_TYPES = [
 ];
 
 // TODO: tidy this
-const requiredKeys = [
-  CONTENT_TYPE_DATE,
-  CONTENT_TYPE_TRANSACTION,
-  CONTENT_TYPE_NARRATIVE
-];
+// const requiredKeys = [
+//   CONTENT_TYPE_DATE,
+//   CONTENT_TYPE_TRANSACTION,
+//   CONTENT_TYPE_NARRATIVE
+// ];
 
+const partialDateRegExp = new RegExp('[0-9]{2}%20(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)');
 const dateRegExp = new RegExp('[0-9]{2}%20(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)%20[0-9]{2}');
 const floatRegExp = /^[0-9,]{1,}\.[0-9]{2}$/;
 
@@ -53,7 +54,8 @@ const isFloat = function (string) {
 }
 
 const getContentType = function (content) {
-  if (dateRegExp.test(content) === true) {
+  // CC - Statements have only partial date
+  if (dateRegExp.test(content) === true || partialDateRegExp.test(content) === true) {
     return TYPE_DATE
   } else if (TRANSACTION_TYPES.indexOf(content) !== -1) {
     return TYPE_TRANSACTION;
