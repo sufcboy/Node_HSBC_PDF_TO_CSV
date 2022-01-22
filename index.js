@@ -1,315 +1,195 @@
 let fs = require('fs'),
-    PDFParser = require("pdf2json");
+  PDFParser = require("pdf2json");
+const string = require('./string');
+const pdf = require('./pdf');
+const prompt = require("prompt-sync")({ sigint: true });
 
-const pdfRegexp = new RegExp('\.pdf');
-const keyDate = 'date';
-const keyType = 'type';
-const keyNarrative = 'narrative';
-const keyDebit = 'debit';
-const keyCredit = 'credit';
-const keyBalance = 'balance';
-const debitTypes = ['DD', 'SO'];
-const typeDate = 'date';
-const typeType = 'type';
-const typeFloat = 'float';
-const typeString = 'string';
+const pdfRegexp = new RegExp('.pdf');
+const enableDebug = true;
+const statementType = getStatementType();
+const firstEntryDate = getDateOfFirstEntry();
 
-const getContentType = function(content) {
-    if (isDate(content) === true) {
-        return typeDate
-    } else if (isType(content) === true) {
-        return typeType;
-    // } else if (isAccountNumber(content) === true) {
-    //     return typeString;
-    } else if (isFloat(content) === true) {
-        return typeFloat;
-    } else {
-        return typeString;
-    }
+function getStatementType() {
+  return prompt('What type of statement is this (credit (c) or other (o))?')
 }
 
-const isDate = function(string) {
-    const regex = new RegExp('[0-9]{2}%20(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)%20[0-9]{2}');
-
-    return regex.test(string);
+function getDateOfFirstEntry() {
+  return prompt('What is the first transaction date (dd mmm)?')
 }
 
-// const isAccountNumber = function(string) {
-//     const regex = new RegExp('[0-9]{6}%20[0-9]{8}');
-
-//     return regex.test(string);
-// }
-
-const isType = function(string) {
-    const validTypes = [
-        'DD',
-        'CR',
-        'SO',
-        'CHQ',
-        'TFR'
-    ];
-
-    if (validTypes.indexOf(string) === -1) {
-        return false;
-    }
-
-    return true;
+function customLog(message) {
+  if (enableDebug) {
+    console.log(message);
+  }
 }
 
-const isFloat = function(string) {
-    if (typeof string !== 'string') {
-        return false;
-    }
-
-    let formattedStr = string.replace('%2C', '');
-
-    const floatRegexp = /^[0-9]{1,}\.[0-9]{2}$/g;
-    return floatRegexp.test(formattedStr);
-}
-
-const isDoubleNarrative = function(statementRecords, previousRow, rowsSinceCompleteStatement) {
-    if ((previousRow.length === 2 || previousRow.length === 3) && rowsSinceCompleteStatement === 1) {
-        return true;
-    }
-
+function isThisTheFirstTransactionDate(content) {
+  if (string.getContentType(content) !== string.TYPE_DATE) {
     return false;
+  }
+
+  const clean = string.cleanString(content)
+
+  // Credit card
+  // 21 Dec
+  if (statementType === 'c') {
+    if (clean.toLowerCase() === firstEntryDate.toLowerCase()) {
+      return true
+    }
+    // 21 Dec 20
+  } else {
+    const dateParts = clean.explode(' ');
+
+    if (`${dateParts[0]} ${dateParts[1]}`.toLowerCase() === firstEntryDate.toLowerCase()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
-const isEmpty = function(statementRecord) {
-    for(var key in statementRecord) {
-        if(statementRecord.hasOwnProperty(key)) {
-            return false;
+const processPdfData = function (pdfData, outputFilename) {
+  // Get the page content
+  const pageTextNodes = pdf.extractPdfDataToContent(pdfData);
+
+  // const pagesExtracts = {};
+  let pageCount = 1;
+  let statements = [];
+
+  for (let pageKey in pageTextNodes) {
+    customLog(`Processing page ${pageCount}\n`);
+
+    let statementContent = {};
+    let skipCurrentPage = false
+    let foundStatement = false;
+
+    for (let yAxis in pageTextNodes[pageKey]) {
+      const rowContent = pageTextNodes[pageKey][yAxis];
+
+      if (skipCurrentPage) {
+        continue;
+      }
+
+      // Check if statement content is complete
+      if (foundStatement) {
+        console.log(statementContent);
+        const complete = prompt(`Is this statement record complete (y/n) or ignore (i) or skip to next page (p)?`);
+
+        if (complete === 'y' || complete === 'i' || complete == 'p') {
+          if (complete === 'y') {
+            statements.push(statementContent);
+          }
+
+          if (complete === 'p') {
+            skipCurrentPage = true;
+          }
+
+          statementContent = {}
         }
+      }
+
+      for (let xAxis in rowContent) {
+        const content = rowContent[xAxis];
+
+        if (!foundStatement) {
+          foundStatement = isThisTheFirstTransactionDate(content);
+
+          if (!foundStatement) {
+            continue;
+          }
+        }
+
+        // Found the first statement entry
+        const contentType = string.getContentType(content);
+        const cleanContent = string.cleanContent(content);
+
+        switch (contentType) {
+          case string.TYPE_TRANSACTION:
+            statementContent['transaction'] = cleanContent;
+            break;
+          case string.TYPE_DATE:
+            statementContent['date'] = cleanContent;
+            break;
+          case string.TYPE_FLOAT:
+            statementContent = setFloatContent(statementContent, cleanContent);
+            break;
+
+          case string.TYPE_STRING:
+            statementContent['narrative'] = Object.prototype.hasOwnProperty.call(statementContent, 'narrative') ? `${statementContent['narrative']} ${cleanContent}` : cleanContent;
+            break
+          default:
+            break;
+        }
+      }
     }
-    return true;
+
+    pageCount++;
+
+    if (statements.length > 0) {
+      console.log('statements', statements);
+    }
+
+  }
+
+  writeToCSV(statements, outputFilename);
 }
 
-const statementRecordFilled = function(statementRecord) {
-    const allKeys = [
-        keyDate,
-        keyType,
-        keyNarrative,
-        keyCredit,
-        keyDebit,
-        keyBalance
-    ];
+const writeToCSV = function (statements, outputFilename) {
+  let outputPath = "csv/" + outputFilename;
+  let writeStream = fs.createWriteStream(outputPath);
 
-    for (let key in allKeys) {
-        let property = allKeys[key];
-        if (false === statementRecord.hasOwnProperty(property)) {
-            return false;
-        }
+  const headers = ['date', 'transaction', 'narrative', 'debit', 'credit', 'balance']
+
+  writeStream.write(headers.join(',') + "\n");
+
+  statements.forEach(function (statement) {
+    let rowContent = [];
+    for (let headerKey in headers) {
+      let header = headers[headerKey];
+
+      // TODO - Escape the content
+      if (Object.prototype.hasOwnProperty.call(statement, header)) {
+        rowContent.push(statement[header])
+      } else {
+        rowContent.push('')
+      }
     }
 
-    return true;
+    writeStream.write(rowContent.join(',') + "\n");
+  })
 }
 
-const inflateBalance = function(currentStatement, previousRecord) {
-    if (false === currentStatement.hasOwnProperty(keyBalance) && currentStatement.hasOwnProperty(keyCredit) && currentStatement.hasOwnProperty(keyDebit) && currentStatement.hasOwnProperty(keyType)) {
-        let newBalance;
+const setFloatContent = function (currentStatement, value) {
 
-        if (debitTypes.indexOf(currentStatement['type']) !== -1) {
-            newBalance = convertFloat(previousRecord[keyBalance]) - convertFloat(currentStatement[keyDebit]);
-        } else {
-            newBalance = convertFloat(previousRecord[keyBalance]) + convertFloat(currentStatement[keyCredit]);
-        }
+  const floatId = Object.prototype.hasOwnProperty.call(currentStatement, 'narrative') ? `${currentStatement['narrative']} - ${value}` : value;
+  const type = prompt(`Is this value ${floatId} a debit/credit/balance? (d/c/b)`);
 
-        currentStatement[keyBalance] = convertFloat(newBalance);
-    }
+  if (type === 'd') {
+    currentStatement['debit'] = value;
+  } else if (type === 'c') {
+    currentStatement['credit'] = value;
+  } else if (type === 'b') {
+    currentStatement['balance'] = value;
+  }
 
-    return currentStatement;
+  return currentStatement;
 }
 
-const convertFloat = function(float) {
-    if (typeof float === 'string' ) {
-        float = cleanString(float, '');
+fs.readdir('pdf', function (err, items) {
+  for (let key in items) {
+    let fileName = items[key];
+
+    if (true === pdfRegexp.test(fileName)) {
+      let pdfParser = new PDFParser();
+      let outputFilename = fileName.replace('.pdf', '.csv');
+
+      pdfParser.on("pdfParser_dataError", errData => console.error(errData.parserError));
+      pdfParser.on("pdfParser_dataReady", pdfData => {
+        processPdfData(pdfData, outputFilename);
+      });
+
+      pdfParser.loadPDF('pdf/' + fileName);
     }
-
-    float = parseFloat(float);
-
-    return float.toFixed(2);
-}
-
-const cleanString = function(string, join) {
-    string = string.split('%20').join(join);
-    string = string.split('%2C').join(join);
-    string = string.split('%26').join(join);
-
-    return string;
-}
-
-const inflateDebitOrCredit = function(content, currentRecord, previousRecord) {
-    if (currentRecord.hasOwnProperty('balance') && previousRecord.hasOwnProperty('balance')) {
-        if (previousRecord['balance'] < currentRecord['balance']) {
-            currentRecord[keyCredit] = convertFloat(content);
-            currentRecord[keyDebit] = 0;
-        } else {
-            currentRecord[keyCredit] = 0;
-            currentRecord[keyDebit] = convertFloat(content);
-        }
-    } else {
-        console.log('Unable to determine whether one row is debit or credit');
-        currentRecord[keyCredit] = 'N/A';
-        currentRecord[keyDebit] = 'NA';
-    }
-
-    return currentRecord;
-}
-
-const processPdfData = function(pdfData, outputFilename) {
-    let yContent = {};
-
-    // Each of the pages
-    for (let key in pdfData['formImage']['Pages']) {
-        let page = pdfData['formImage']['Pages'][key];
-
-        for (let key2 in page['Texts']) {
-            let textNode = page['Texts'][key2];
-
-            if (typeof yContent[textNode['y']] !== 'object') {
-                yContent[textNode['y']] = [];
-            }
-
-            yContent[textNode['y']].push(textNode['R'][0]['T']);
-        }
-    }
-
-    let lastDate = '';
-    let foundStatementData = false;
-    let statementRecord = {};
-    let statementRecords = [];
-    let previousRow;
-    let rowsSinceCompleteStatement = 0;
-
-    // Loop through y content
-    for (let yAxis in yContent) {
-        let rowData = yContent[yAxis];
-
-        for (let key3 in rowData) {
-            let content = rowData[key3];
-            let contentType = getContentType(rowData[key3]);
-            let ignoreFloat = false;
-
-            // Found a date
-            if (contentType === typeDate) {
-                if (foundStatementData === false) {
-                    foundStatementData = true;
-                }
-
-                statementRecord['date'] = cleanString(content, ' ');
-                lastDate = cleanString(content, ' ');
-            // Date might not be set
-            } else if (lastDate !== '' && isEmpty(statementRecord) && foundStatementData === true) {
-                statementRecord['date'] = lastDate;
-            }
-
-            // We aren't in the header
-            if (foundStatementData === true) {
-                // Type of transaction?
-                if (contentType === typeType) {
-                    statementRecord['type'] = content;
-                }
-
-                // Narrative
-                if (contentType === typeString) {
-                    if (isDoubleNarrative(statementRecords, previousRow, rowsSinceCompleteStatement)) {
-                        statementRecord['narrative'] = cleanString(statementRecord['narrative'] + ' ' + content, ' ');
-                    } else {
-                        statementRecord['narrative'] = cleanString(content, ' ');
-                    }
-
-                // Cheques have a numeric value as description
-                } else if (statementRecord.hasOwnProperty('type') && statementRecord['type'] === 'CHQ' && !statementRecord.hasOwnProperty('narrative') && contentType === typeFloat) {
-                    statementRecord['narrative'] = cleanString(content, '');
-                    ignoreFloat = true;
-                }
-
-                // Paid our or paid in
-                if (contentType === typeFloat && !ignoreFloat) {
-                    // Credit or debit
-                    if (false === statementRecord.hasOwnProperty('debit') && false === statementRecord.hasOwnProperty('credit')) {
-                        if (debitTypes.indexOf(statementRecord['type']) !== -1) {
-                            statementRecord['debit'] = convertFloat(content);
-                            statementRecord['credit'] = 0.00;
-                        } else if (statementRecord['type'] === 'CR'){
-                            statementRecord['debit'] = 0.00;
-                            statementRecord['credit'] = convertFloat(content);
-                        } else {
-                            let nextKey = parseInt(key3, 10) + 1;
-
-                            // Skip to balance so we can work out whether it a debit or credit
-                            if (rowData.hasOwnProperty(nextKey) && true === isFloat(rowData[nextKey])) {
-                                statementRecord['balance'] = convertFloat(rowData[nextKey]);
-                                statementRecord = inflateDebitOrCredit(
-                                    content,
-                                    statementRecord,
-                                    statementRecords[statementRecords.length - 1]
-                                );
-                            }
-                            // See if we have another key
-                            // See if it's a float
-                            // Assign to balance
-                            // rowData[key3]
-                        }
-                    // Running total
-                    } else if (!statementRecord.hasOwnProperty('balance')) {
-                        statementRecord['balance'] = convertFloat(content)
-                    }
-                }
-            }
-        }
-
-        if (statementRecords.length > 0) {
-            statementRecord = inflateBalance(
-                statementRecord,
-                statementRecords[statementRecords.length - 1]
-            );
-        }
-
-        if (statementRecordFilled(statementRecord)) {
-            statementRecords.push(statementRecord);
-            // Reset
-            statementRecord = {};
-            lastNarrative = '';
-            rowsSinceCompleteStatement = 0;
-        } else {
-            rowsSinceCompleteStatement++;
-        }
-
-        previousRow = yContent[yAxis];
-    }
-
-    let outputPath = "csv/" + outputFilename;
-    let writeStream = fs.createWriteStream(outputPath);
-
-    writeStream.write(keyDate + ',' + keyType + ',' + keyNarrative + ',' + keyDebit + ',' + keyCredit + ',' + keyBalance + "\n");
-
-    for (let statementIndex in statementRecords) {
-        let statementRow = statementRecords[statementIndex];
-
-        writeStream.write(statementRow[keyDate] + ',' + statementRow[keyType] + ',' + statementRow[keyNarrative] + ',' + statementRow[keyDebit] + ',' + statementRow[keyCredit] + ',' + statementRow[keyBalance] + "\n");
-    }
-
-    writeStream.on('finish', () => {
-        console.log('Created file - ' + outputPath);
-    });
-    writeStream.end();
-}
-
-fs.readdir('pdf', function(err, items) {
-    for (let key in items) {
-        let fileName = items[key];
-
-        if (true === pdfRegexp.test(fileName)) {
-            let pdfParser = new PDFParser();
-            let outputFilename = fileName.replace('.pdf', '.csv');
-
-            pdfParser.on("pdfParser_dataError", errData => console.error(errData.parserError) );
-            pdfParser.on("pdfParser_dataReady", pdfData => {
-                processPdfData(pdfData, outputFilename);
-            });
-
-            pdfParser.loadPDF('pdf/' + fileName);
-        }
-    }
+  }
 });
+

@@ -60,4 +60,7 @@ typings/
 # next.js build output
 .next
 
+# Debug
 output.txt
+output
+dev_notes.txt
