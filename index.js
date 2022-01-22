@@ -56,7 +56,6 @@ const processPdfData = function (pdfData, outputFilename) {
   let pageCount = 1;
   let statements = [];
 
-  // Phase 1 - Get mapped data out from content
   for (let pageKey in pageTextNodes) {
     customLog(`Processing page ${pageCount}\n`);
 
