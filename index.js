@@ -6,15 +6,14 @@ const prompt = require("prompt-sync")({ sigint: true });
 
 const pdfRegexp = new RegExp('.pdf');
 const enableDebug = true;
-const statementType = getStatementType();
-const firstEntryDate = getDateOfFirstEntry();
+let statementType, firstEntryDate;
 
-function getStatementType() {
-  return prompt('What type of statement is this (credit (c) or other (o))?')
+function getStatementType(fileName) {
+  return prompt(`What type of statement is ${fileName} (credit (c) or other (o))?`)
 }
 
-function getDateOfFirstEntry() {
-  return prompt('What is the first transaction date (dd mmm)?')
+function getDateOfFirstEntry(fileName) {
+  return prompt(`What is the first transaction date in ${fileName} (dd mmm)?`)
 }
 
 function customLog(message) {
@@ -23,7 +22,7 @@ function customLog(message) {
   }
 }
 
-function isThisTheFirstTransactionDate(content) {
+function isThisTheFirstTransactionDate(content, statementType, firstEntryDate) {
   if (string.getContentType(content) !== string.TYPE_DATE) {
     return false;
   }
@@ -38,7 +37,8 @@ function isThisTheFirstTransactionDate(content) {
     }
     // 21 Dec 20
   } else {
-    const dateParts = clean.explode(' ');
+    const dateParts = clean.split(' ');
+    console.log('first date', `${dateParts[0]} ${dateParts[1]}`);
 
     if (`${dateParts[0]} ${dateParts[1]}`.toLowerCase() === firstEntryDate.toLowerCase()) {
       return true;
@@ -49,6 +49,10 @@ function isThisTheFirstTransactionDate(content) {
 }
 
 const processPdfData = function (pdfData, outputFilename) {
+  const originalFileName = outputFilename.replace('.csv', '')
+  let statementType = getStatementType(originalFileName);
+  let firstEntryDate = getDateOfFirstEntry(originalFileName);
+
   // Get the page content
   const pageTextNodes = pdf.extractPdfDataToContent(pdfData);
 
@@ -92,7 +96,7 @@ const processPdfData = function (pdfData, outputFilename) {
         const content = rowContent[xAxis];
 
         if (!foundStatement) {
-          foundStatement = isThisTheFirstTransactionDate(content);
+          foundStatement = isThisTheFirstTransactionDate(content, statementType, firstEntryDate);
 
           if (!foundStatement) {
             continue;
