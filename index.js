@@ -59,13 +59,13 @@ const processPdfData = function (pdfData, outputFilename) {
   // const pagesExtracts = {};
   let pageCount = 1;
   let statements = [];
+  let foundStatement = false;
 
   for (let pageKey in pageTextNodes) {
     customLog(`Processing page ${pageCount}\n`);
 
     let statementContent = {};
     let skipCurrentPage = false
-    let foundStatement = false;
 
     for (let yAxis in pageTextNodes[pageKey]) {
       const rowContent = pageTextNodes[pageKey][yAxis];
